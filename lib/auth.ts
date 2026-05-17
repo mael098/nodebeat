@@ -1,3 +1,4 @@
+import { NextRequest } from 'next/server';
 import { SignJWT, jwtVerify } from 'jose';
 
 export type AuthTokenPayload = {
@@ -42,4 +43,14 @@ export async function verifyAuthToken(token: string): Promise<AuthTokenPayload |
     } catch {
         return null;
     }
+}
+
+export async function getAuthenticatedUser(request: NextRequest): Promise<AuthTokenPayload | null> {
+    const token = request.cookies.get('auth_token')?.value;
+
+    if (!token) {
+        return null;
+    }
+
+    return verifyAuthToken(token);
 }

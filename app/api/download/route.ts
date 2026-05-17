@@ -5,6 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { prisma } from '@/lib/prisma';
+import { getAuthenticatedUser } from '@/lib/auth';
 
 const execAsync = promisify(exec);
 
@@ -36,6 +37,12 @@ function encodeRFC5987ValueChars(value: string): string {
 
 export async function POST(request: NextRequest) {
     try {
+        const currentUser = await getAuthenticatedUser(request);
+
+        if (!currentUser) {
+            return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+        }
+
         const { url, type, title, channel, duration, thumbnail } = await request.json();
 
         if (!url) {
@@ -130,28 +137,31 @@ export async function POST(request: NextRequest) {
                             : 'Sin titulo';
 
                 const duplicateWindowStart = new Date(Date.now() - 60 * 1000);
-                const recentDuplicate = await prisma.download.findFirst({
-                    where: {
-                        title: normalizedTitle,
-                        type: type,
-                        channel: typeof channel === 'string' ? channel : '',
-                        createdAt: {
-                            gte: duplicateWindowStart,
-                        },
-                    },
-                });
+                const recentDuplicate = await prisma.$queryRaw<Array<{ id: number }>>`
+                    SELECT id
+                    FROM Download
+                    WHERE title = ${normalizedTitle}
+                      AND type = ${type}
+                      AND channel = ${typeof channel === 'string' ? channel : ''}
+                      AND userId = ${currentUser.userId}
+                      AND createdAt >= ${duplicateWindowStart}
+                    LIMIT 1
+                `;
 
-                if (!recentDuplicate) {
-                    await prisma.download.create({
-                        data: {
-                            title: normalizedTitle,
-                            filePath: finalFile,
-                            type: type,
-                            channel: typeof channel === 'string' ? channel : '',
-                            duration: typeof duration === 'string' ? duration : '',
-                            thumbnail: typeof thumbnail === 'string' ? thumbnail : null,
-                        },
-                    });
+                if (recentDuplicate.length === 0) {
+                    await prisma.$executeRaw`
+                        INSERT INTO Download (title, filePath, type, channel, duration, thumbnail, userId, createdAt)
+                        VALUES (
+                            ${normalizedTitle},
+                            ${finalFile},
+                            ${type},
+                            ${typeof channel === 'string' ? channel : ''},
+                            ${typeof duration === 'string' ? duration : ''},
+                            ${typeof thumbnail === 'string' ? thumbnail : null},
+                            ${currentUser.userId},
+                            ${new Date()}
+                        )
+                    `;
                 }
             } catch (dbError) {
                 console.error('Error guardando en BD:', dbError);

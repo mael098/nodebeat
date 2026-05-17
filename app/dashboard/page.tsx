@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 type DownloadType = 'video' | 'audio';
 
@@ -24,6 +25,7 @@ type SavedDownload = {
 };
 
 export default function Home() {
+  const router = useRouter();
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
@@ -34,21 +36,29 @@ export default function Home() {
   const downloadLockRef = useRef(false);
 
   useEffect(() => {
-    loadDownloads();
-  }, []);
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          const response = await fetch('/api/downloads');
+          if (!response.ok) {
+            if (response.status === 401) {
+              router.replace('/login');
+              return;
+            }
 
-  async function loadDownloads() {
-    try {
-      const response = await fetch('/api/downloads');
-      if (!response.ok) {
-        throw new Error('No se pudo cargar la biblioteca');
-      }
-      const data: SavedDownload[] = await response.json();
-      setSavedDownloads(data);
-    } catch (error) {
-      console.error('Error cargando descargas:', error);
-    }
-  }
+            throw new Error('No se pudo cargar la biblioteca');
+          }
+
+          const data: SavedDownload[] = await response.json();
+          setSavedDownloads(data);
+        } catch (error) {
+          console.error('Error cargando descargas:', error);
+        }
+      })();
+    }, 0);
+
+    return () => clearTimeout(timer);
+  }, [router]);
 
   const handleAnalyze = async () => {
     if (!url.trim()) {
@@ -143,7 +153,11 @@ export default function Home() {
       setUrl('');
       setVideoInfo(null);
 
-      await loadDownloads();
+      const refreshResponse = await fetch('/api/downloads');
+      if (refreshResponse.ok) {
+        const refreshedDownloads: SavedDownload[] = await refreshResponse.json();
+        setSavedDownloads(refreshedDownloads);
+      }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Error desconocido';
       if (errorMsg.includes('aborted')) {
