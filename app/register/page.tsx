@@ -69,7 +69,7 @@ export default function Page() {
       await res.json();
 
       // Con cookie httpOnly activa, redirigimos directo a la ruta protegida.
-      router.push("/");
+      router.push("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al registrarse");
     } finally {

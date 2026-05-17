@@ -54,7 +54,7 @@ export default function Page() {
       }
 
       await res.json();
-      router.push("/");
+      router.push("/dashboard");
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo iniciar sesión");
