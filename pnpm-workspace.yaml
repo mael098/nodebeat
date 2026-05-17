@@ -1,4 +1,6 @@
 allowBuilds:
+  better-sqlite3: true
   ffmpeg-static: true
+  prisma: true
   sharp: true
   unrs-resolver: true

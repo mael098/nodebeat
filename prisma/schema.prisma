@@ -4,10 +4,67 @@
 // Get a free hosted Postgres database in seconds: `npx create-db`
 
 generator client {
-  provider = "prisma-client"
-  output   = "../app/generated/prisma"
+  provider   = "prisma-client-js"
+  engineType = "binary"
+  output     = "../app/generated/prisma"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
 }
+
+
+model Collection {
+  id  Int @id @default(autoincrement())
+  name String
+  url String
+  createdAt DateTime @default(now())
+}
+
+model Download {
+  id  Int @id @default(autoincrement())
+  title String
+  filePath String @unique
+  type String // "audio" o "video"
+  channel String?
+  duration String?
+  thumbnail String?
+  createdAt DateTime @default(now())
+}
+
+model User {
+  id  Int @id @default(autoincrement())
+  email String @unique
+  password String
+  createdAt DateTime @default(now())
+}
+
+model Session {
+  id  Int @id @default(autoincrement())
+  userId Int
+  token String @unique
+  createdAt DateTime @default(now())
+}
+
+// Agrega un modelo para almacenar los logs de la aplicación
+model Log {
+  id  Int @id @default(autoincrement())
+  message String
+  level String
+  createdAt DateTime @default(now())
+}
+
+model Setting {
+  id  Int @id @default(autoincrement())
+  key String @unique
+  value String
+  createdAt DateTime @default(now())
+}
+
+// Agrega un modelo para almacenar las claves de API
+model ApiKey {
+  id  Int @id @default(autoincrement())
+  key String @unique
+  createdAt DateTime @default(now())
+}
+

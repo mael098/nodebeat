@@ -3,15 +3,40 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
+import { prisma } from '@/lib/prisma';
 
 const execAsync = promisify(exec);
 
 // Configurar timeout máximo para esta ruta
 export const maxDuration = 600; // 10 minutos en Vercel, ignorado en dev
 
+function sanitizeFileName(value: string): string {
+    return value
+        .replace(/[\\/:*?"<>|;\r\n]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function toAsciiFileName(value: string): string {
+    const normalized = sanitizeFileName(value)
+        .normalize('NFKD')
+        .replace(/[^\x20-\x7E]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    return normalized || 'descarga';
+}
+
+function encodeRFC5987ValueChars(value: string): string {
+    return encodeURIComponent(value).replace(/['()*]/g, (character) => {
+        return `%${character.charCodeAt(0).toString(16).toUpperCase()}`;
+    });
+}
+
 export async function POST(request: NextRequest) {
     try {
-        const { url, type } = await request.json();
+        const { url, type, title, channel, duration, thumbnail } = await request.json();
 
         if (!url) {
             return NextResponse.json(
@@ -28,25 +53,43 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Crear nombre único
-        const timestamp = Date.now();
-        const outputFormat = type === 'audio' ? 'mp3' : 'mp4';
-        const tempDir = '/tmp/nodebeat';
-
-        // Crear carpeta si no existe
-        if (!fs.existsSync(tempDir)) {
-            fs.mkdirSync(tempDir, { recursive: true });
+        // Limpiar URL para forzar descarga de un solo video (sin playlist)
+        let cleanUrl = url;
+        try {
+            const parsed = new URL(url);
+            if (parsed.hostname.includes('youtube.com')) {
+                const videoId = parsed.searchParams.get('v');
+                if (videoId) {
+                    cleanUrl = `https://www.youtube.com/watch?v=${videoId}`;
+                }
+            } else if (parsed.hostname.includes('youtu.be')) {
+                const videoId = parsed.pathname.replace('/', '').trim();
+                if (videoId) {
+                    cleanUrl = `https://www.youtube.com/watch?v=${videoId}`;
+                }
+            }
+        } catch {
+            cleanUrl = url;
         }
 
-        const basePath = path.join(tempDir, timestamp.toString());
+        // Crear nombre único
+        const timestamp = Date.now();
+        const downloadsDir = path.join(os.homedir(), 'NodeBeat_Downloads');
+
+        // Crear carpeta si no existe
+        if (!fs.existsSync(downloadsDir)) {
+            fs.mkdirSync(downloadsDir, { recursive: true });
+        }
+
+        const basePath = path.join(downloadsDir, timestamp.toString());
 
         try {
             // Construir comando
             let command = '';
             if (type === 'audio') {
-                command = `yt-dlp --no-playlist -x --audio-format mp3 -o "${basePath}" "${url}"`;
+                command = `yt-dlp --no-playlist -x --audio-format mp3 -o "${basePath}" "${cleanUrl}"`;
             } else {
-                command = `yt-dlp --no-playlist -f "best" -o "${basePath}" "${url}"`;
+                command = `yt-dlp --no-playlist -f "best" -o "${basePath}" "${cleanUrl}"`;
             }
 
             console.log('Iniciando descarga:', timestamp);
@@ -59,11 +102,11 @@ export async function POST(request: NextRequest) {
 
             // Buscar el archivo descargado (yt-dlp agrega extensión automáticamente)
             let finalFile: string | null = null;
-            const files = fs.readdirSync(tempDir);
+            const files = fs.readdirSync(downloadsDir);
 
             for (const file of files) {
                 if (file.startsWith(timestamp.toString())) {
-                    finalFile = path.join(tempDir, file);
+                    finalFile = path.join(downloadsDir, file);
                     break;
                 }
             }
@@ -77,22 +120,63 @@ export async function POST(request: NextRequest) {
             // Leer el archivo
             const fileBuffer = fs.readFileSync(finalFile);
 
-            // Limpiar archivo temporal después de 1 minuto
-            setTimeout(() => {
-                try {
-                    fs.unlinkSync(finalFile!);
-                    console.log('Archivo temporal eliminado:', finalFile);
-                } catch (e) {
-                    console.log('Error al eliminar archivo temporal');
+            // Guardar en BD
+            try {
+                const normalizedTitle =
+                    typeof title === 'string' && title.trim().length > 0
+                        ? title.trim()
+                        : finalFile
+                            ? path.basename(finalFile).replace(/\.[^/.]+$/, '')
+                            : 'Sin titulo';
+
+                const duplicateWindowStart = new Date(Date.now() - 60 * 1000);
+                const recentDuplicate = await prisma.download.findFirst({
+                    where: {
+                        title: normalizedTitle,
+                        type: type,
+                        channel: typeof channel === 'string' ? channel : '',
+                        createdAt: {
+                            gte: duplicateWindowStart,
+                        },
+                    },
+                });
+
+                if (!recentDuplicate) {
+                    await prisma.download.create({
+                        data: {
+                            title: normalizedTitle,
+                            filePath: finalFile,
+                            type: type,
+                            channel: typeof channel === 'string' ? channel : '',
+                            duration: typeof duration === 'string' ? duration : '',
+                            thumbnail: typeof thumbnail === 'string' ? thumbnail : null,
+                        },
+                    });
                 }
-            }, 60000);
+            } catch (dbError) {
+                console.error('Error guardando en BD:', dbError);
+                // Continuar incluso si falla guardar en BD
+            }
+
+            const extension = type === 'audio' ? 'mp3' : 'mp4';
+            const rawTitle =
+                typeof title === 'string' && title.trim().length > 0
+                    ? sanitizeFileName(title)
+                    : 'descarga';
+            const asciiTitle = toAsciiFileName(rawTitle);
+            const fileNameAscii = `${asciiTitle}.${extension}`;
+            const fileNameUtf8 = `${rawTitle || 'descarga'}.${extension}`;
+            const contentDisposition =
+                `attachment; filename="${fileNameAscii}"; ` +
+                `filename*=UTF-8''${encodeRFC5987ValueChars(fileNameUtf8)}`;
 
             // Retornar el archivo
             return new NextResponse(fileBuffer, {
                 headers: {
-                    'Content-Disposition': `attachment; filename="descarga.${outputFormat}"`,
+                    'Content-Disposition': contentDisposition,
                     'Content-Type': type === 'audio' ? 'audio/mpeg' : 'video/mp4',
                     'Cache-Control': 'no-cache, no-store, must-revalidate',
+                    'X-File-Path': finalFile || '',
                 },
             });
         } catch (error) {
