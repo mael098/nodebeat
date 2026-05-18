@@ -1,5 +1,5 @@
 import path from 'path';
-import { PrismaClient } from '@/app/generated/prisma/client';
+import { PrismaClient } from '@/app/generated/prisma';
 import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
 
 // Use absolute path to avoid CWD issues in Next.js server routes

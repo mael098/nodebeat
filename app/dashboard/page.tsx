@@ -33,32 +33,43 @@ export default function Home() {
   const [downloadType, setDownloadType] = useState<DownloadType>('audio');
   const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
   const [savedDownloads, setSavedDownloads] = useState<SavedDownload[]>([]);
+  const [downloadEnabled, setDownloadEnabled] = useState(false);
   const downloadLockRef = useRef(false);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       void (async () => {
         try {
-          const response = await fetch('/api/downloads');
-          if (!response.ok) {
-            if (response.status === 401) {
+          const [downloadsRes, userRes] = await Promise.all([
+            fetch('/api/downloads'),
+            fetch('/api/user'),
+          ]);
+
+          if (!downloadsRes.ok || !userRes.ok) {
+            if (!downloadsRes.ok && downloadsRes.status === 401) {
               router.replace('/login');
               return;
             }
-
-            throw new Error('No se pudo cargar la biblioteca');
+            throw new Error('No se pudo cargar los datos');
           }
 
-          const data: SavedDownload[] = await response.json();
-          setSavedDownloads(data);
+          const downloads: SavedDownload[] = await downloadsRes.json();
+          const user = await userRes.json();
+
+          setSavedDownloads(downloads);
+          setDownloadEnabled(user.downloadEnabled ?? false);
         } catch (error) {
-          console.error('Error cargando descargas:', error);
+          console.error('Error cargando datos:', error);
         }
       })();
     }, 0);
 
     return () => clearTimeout(timer);
   }, [router]);
+
+
+
+
 
   const handleAnalyze = async () => {
     if (!url.trim()) {
@@ -172,149 +183,167 @@ export default function Home() {
   };
 
   const totalDownloads = savedDownloads.length;
-  const lastDownloadTitle = savedDownloads[0]?.title ?? 'Sin descargas';
+  const lastDownloadTitle = savedDownloads[0]?.title ?? 'Sin descargas aun';
 
   return (
     <>
-      <div className="mb-8 rounded-3xl border border-white/70 bg-white/80 p-6 shadow-lg shadow-blue-100/70 backdrop-blur-sm dark:border-gray-700 dark:bg-gray-800/80 dark:shadow-black/20 md:p-8">
-        <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+      {/* Stat bar */}
+      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-[#2a3b64] bg-[#0f182d] p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#6b82b8]">Total archivos</p>
+          <p className="mt-1 text-3xl font-extrabold text-[#e8efff]">{totalDownloads}</p>
+        </div>
+        <div className="rounded-2xl border border-[#2a3b64] bg-[#0f182d] p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#6b82b8]">Modo activo</p>
+          <p className="mt-1 text-3xl font-extrabold text-[#8cb5ff]">
+            {downloadType === 'audio' ? 'Audio' : 'Video'}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-[#2a3b64] bg-[#0f182d] p-4">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#6b82b8]">Ultimo registro</p>
+          <p className="mt-1 truncate text-sm font-semibold text-[#c0cfee]">{lastDownloadTitle}</p>
+        </div>
+      </div>
+
+      {/* Panel de descarga */}
+      <div className="rounded-3xl border border-[#2a3b64] bg-[#0c1528] p-6 shadow-[0_20px_50px_rgba(0,0,0,0.5)] md:p-8">
+        <div className="mb-6 flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#1a3b8a]">
+            <svg className="h-5 w-5 text-[#8cb5ff]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V3" />
+            </svg>
+          </div>
           <div>
-            <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.2em] text-blue-700 dark:text-blue-300">
-              Panel principal
-            </p>
-            <h1 className="mb-2 text-3xl font-extrabold text-gray-900 dark:text-white md:text-4xl">NodeBeat</h1>
-            <p className="text-sm text-gray-600 dark:text-gray-300">
-              Analiza videos, descarga en audio o video y administra tu biblioteca en un solo lugar.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="rounded-xl border border-blue-100 bg-blue-50/80 px-3 py-2 dark:border-gray-600 dark:bg-gray-700">
-              <p className="text-xs text-blue-700 dark:text-blue-300">Total archivos</p>
-              <p className="text-xl font-bold text-gray-900 dark:text-gray-100">{totalDownloads}</p>
-            </div>
-            <div className="rounded-xl border border-emerald-100 bg-emerald-50/80 px-3 py-2 dark:border-gray-600 dark:bg-gray-700">
-              <p className="text-xs text-emerald-700 dark:text-emerald-300">Modo activo</p>
-              <p className="text-xl font-bold text-gray-900 dark:text-gray-100">{downloadType === 'audio' ? 'Audio' : 'Video'}</p>
-            </div>
+            <h2 className="text-lg font-extrabold text-[#f0f5ff]">Descargar contenido</h2>
+            <p className="text-xs text-[#6b82b8]">Pega una URL de YouTube y elige el formato</p>
           </div>
         </div>
 
-        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/90 px-3 py-2 text-xs text-slate-700 dark:border-gray-700 dark:bg-gray-900/50 dark:text-gray-300">
-          Ultimo titulo registrado: <span className="font-semibold">{lastDownloadTitle}</span>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-6">
-        <div
-          id="descargar"
-          className="scroll-mt-28 rounded-2xl border border-white/70 bg-white/90 p-6 shadow-lg shadow-blue-100/50 dark:border-gray-700 dark:bg-gray-800/90 dark:shadow-black/20"
-        >
-          <h2 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">Descargar</h2>
-
-            <form onSubmit={handleDownload} className="space-y-4">
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  URL de YouTube
-                </label>
-                <input
-                  type="text"
-                  value={url}
-                  onChange={(e) => {
-                    setUrl(e.target.value);
-                    setVideoInfo(null);
-                  }}
-                  placeholder="https://www.youtube.com/watch?v=..."
-                  className="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 focus:border-transparent focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                  disabled={loading || analyzing}
-                />
-                <button
-                  type="button"
-                  onClick={handleAnalyze}
-                  disabled={loading || analyzing}
-                  className="mt-2 w-full rounded-xl border border-blue-500 py-2 font-medium text-blue-600 transition hover:bg-blue-50 disabled:opacity-50 dark:text-blue-300 dark:hover:bg-gray-700"
-                >
-                  {analyzing ? 'Analizando...' : 'Analizar URL'}
-                </button>
-              </div>
-
-              {videoInfo && (
-                <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/40">
-                  <div className="flex gap-3">
-                    {videoInfo.thumbnail ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={videoInfo.thumbnail}
-                        alt={videoInfo.title}
-                        className="h-20 w-32 rounded-md object-cover"
-                      />
-                    ) : (
-                      <div className="h-20 w-32 rounded-md bg-gray-300 dark:bg-gray-700" />
-                    )}
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
-                        {videoInfo.title}
-                      </p>
-                      <p className="text-xs text-gray-600 dark:text-gray-300">{videoInfo.channel}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Duracion: {videoInfo.duration}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Que descargar?
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setDownloadType('audio')}
-                    className={`rounded-lg px-3 py-2 font-medium transition ${
-                      downloadType === 'audio'
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
-                    }`}
-                    disabled={loading || analyzing}
-                  >
-                    Audio (MP3)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDownloadType('video')}
-                    className={`rounded-lg px-3 py-2 font-medium transition ${
-                      downloadType === 'video'
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
-                    }`}
-                    disabled={loading || analyzing}
-                  >
-                    Video (MP4)
-                  </button>
-                </div>
-              </div>
-
-              <button
-                type="submit"
+        <form onSubmit={handleDownload} className="space-y-5">
+          {/* URL input */}
+          <div>
+            <label className="mb-2 block text-xs font-bold uppercase tracking-[0.14em] text-[#7a93c4]">
+              URL de YouTube
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={url}
+                onChange={(e) => {
+                  setUrl(e.target.value);
+                  setVideoInfo(null);
+                }}
+                placeholder="https://www.youtube.com/watch?v=..."
+                className="h-11 flex-1 rounded-xl border border-[#2d4172] bg-[#0d1730] px-4 text-sm text-[#e0e8ff] outline-none placeholder:text-[#4a5878] focus:border-[#3f5fa8] focus:ring-1 focus:ring-[#3f5fa8] disabled:opacity-50"
                 disabled={loading || analyzing}
-                className="w-full rounded-xl bg-linear-to-r from-blue-500 to-indigo-600 py-3 font-bold text-white transition hover:from-blue-600 hover:to-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+              />
+              <button
+                type="button"
+                onClick={handleAnalyze}
+                disabled={loading || analyzing}
+                className="h-11 rounded-xl border border-[#3a5499] bg-[#142040] px-5 text-sm font-bold text-[#a0bcf0] transition hover:border-[#5070b8] hover:text-[#c7d8ff] disabled:opacity-50"
               >
-                {loading ? 'Descargando...' : 'Descargar'}
+                {analyzing ? 'Analizando...' : 'Analizar'}
               </button>
-            </form>
+            </div>
+          </div>
 
-            {message && (
-              <div className="mt-4 rounded-xl border border-gray-200 bg-gray-100 p-3 dark:border-gray-700 dark:bg-gray-700">
-                <p className="text-sm text-gray-800 dark:text-gray-200">{message}</p>
+          {/* Video preview */}
+          {videoInfo && (
+            <div className="flex gap-3 rounded-2xl border border-[#2f4575] bg-[#0d1935] p-4">
+              {videoInfo.thumbnail ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={videoInfo.thumbnail}
+                  alt={videoInfo.title}
+                  className="h-20 w-32 shrink-0 rounded-xl object-cover"
+                />
+              ) : (
+                <div className="h-20 w-32 shrink-0 rounded-xl bg-[#1a2d50]" />
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-[#d8e4ff]">{videoInfo.title}</p>
+                <p className="mt-1 text-xs text-[#7a93c4]">{videoInfo.channel}</p>
+                <p className="text-xs text-[#5a6f9a]">Duracion: {videoInfo.duration}</p>
               </div>
-            )}
-        </div>
+            </div>
+          )}
+
+          {/* Type selector */}
+          <div>
+            <label className="mb-2 block text-xs font-bold uppercase tracking-[0.14em] text-[#7a93c4]">
+              Formato
+            </label>
+            <div className="grid grid-cols-2 gap-2 rounded-xl border border-[#253459] bg-[#0d1528] p-1">
+              <button
+                type="button"
+                onClick={() => setDownloadType('audio')}
+                disabled={loading || analyzing}
+                className={`rounded-lg py-2.5 text-sm font-bold transition ${
+                  downloadType === 'audio'
+                    ? 'bg-[#1a3b8a] text-white shadow-[0_2px_12px_rgba(26,59,138,0.45)]'
+                    : 'text-[#7a93c4] hover:text-[#aec4f0]'
+                }`}
+              >
+                Audio MP3
+              </button>
+              <button
+                type="button"
+                onClick={() => setDownloadType('video')}
+                disabled={loading || analyzing}
+                className={`rounded-lg py-2.5 text-sm font-bold transition ${
+                  downloadType === 'video'
+                    ? 'bg-[#1a3b8a] text-white shadow-[0_2px_12px_rgba(26,59,138,0.45)]'
+                    : 'text-[#7a93c4] hover:text-[#aec4f0]'
+                }`}
+              >
+                Video MP4
+              </button>
+            </div>
+          </div>
+
+          {/* Submit */}
+          <button
+            type="submit"
+            disabled={loading || analyzing || (!downloadEnabled && totalDownloads >= 2)}
+            className="w-full rounded-xl bg-[#1a3b8a] py-3.5 text-sm font-extrabold text-white shadow-[0_8px_24px_rgba(26,59,138,0.4)] transition hover:bg-[#1f4aab] disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {loading
+              ? 'Descargando...'
+              : !downloadEnabled && totalDownloads >= 2
+              ? 'Limite alcanzado — Contacta al admin'
+              : 'Descargar'}
+          </button>
+
+          {/* Status banners */}
+          {!downloadEnabled && totalDownloads >= 1 && (
+            <div className="rounded-xl border border-[#6b4a1a] bg-[#1e1208] p-3 text-xs">
+              <p className="font-bold text-[#f5c87a]">Descargas: {totalDownloads}/2 disponibles</p>
+              {totalDownloads >= 2 && (
+                <p className="mt-1 text-[#c8a55e]">
+                  Alcanzaste el limite gratuito. Contacta al administrador para activar acceso ilimitado.
+                </p>
+              )}
+            </div>
+          )}
+
+          {downloadEnabled && (
+            <div className="rounded-xl border border-[#1a4a30] bg-[#0b1f14] p-3 text-xs">
+              <p className="font-bold text-[#5fe09a]">Acceso ilimitado de descargas activado</p>
+            </div>
+          )}
+        </form>
+
+        {message && (
+          <div className="mt-5 rounded-xl border border-[#2a3b64] bg-[#0d1835] p-4">
+            <p className="text-sm text-[#b0c4e8]">{message}</p>
+          </div>
+        )}
       </div>
 
-      <div className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
-        <p>Las descargas se guardan en ~/NodeBeat_Downloads</p>
-      </div>
-
+      <p className="mt-5 text-center text-xs text-[#3d5278]">
+        Las descargas se guardan en ~/NodeBeat_Downloads
+      </p>
     </>
   );
 }

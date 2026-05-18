@@ -16,6 +16,32 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Suscripciones con Mercado Pago
+
+Se agrego una base de suscripciones para usuarios autenticados.
+
+### Variables de entorno
+
+Configura estas variables en `.env.local`:
+
+```env
+MP_ACCESS_TOKEN=APP_USR-...
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+### Flujo implementado
+
+1. El usuario inicia checkout desde el dashboard.
+2. `POST /api/payments/mercadopago/preference` crea la preferencia en Mercado Pago.
+3. Mercado Pago notifica a `POST /api/payments/mercadopago/webhook`.
+4. El webhook verifica el pago y marca la suscripcion del usuario como activa.
+
+### Endpoints nuevos
+
+- `POST /api/payments/mercadopago/preference`
+- `POST /api/payments/mercadopago/webhook`
+- `GET /api/subscription`
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

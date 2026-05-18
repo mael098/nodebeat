@@ -6,6 +6,7 @@ import path from 'path';
 import os from 'os';
 import { prisma } from '@/lib/prisma';
 import { getAuthenticatedUser } from '@/lib/auth';
+import { checkUserAccess } from '@/lib/admin';
 
 const execAsync = promisify(exec);
 
@@ -41,6 +42,43 @@ export async function POST(request: NextRequest) {
 
         if (!currentUser) {
             return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+        }
+
+        const hasAccess = await checkUserAccess(currentUser.userId);
+        if (!hasAccess) {
+            return NextResponse.json(
+                { error: 'No tienes acceso a descargas. Contacta al administrador.' },
+                { status: 403 },
+            );
+        }
+
+        // Obtener estado de acceso del usuario
+        const userAccess = await prisma.userAccess.findUnique({
+            where: { userId: currentUser.userId },
+            select: { downloadEnabled: true },
+        });
+
+        // Verificar límite de descargas gratuitas (máx 2 si NO tiene downloadEnabled)
+        const user = await prisma.user.findUnique({
+            where: { id: currentUser.userId },
+            select: { _count: { select: { downloads: true } } },
+        });
+
+        if (!user) {
+            return NextResponse.json(
+                { error: 'Usuario no encontrado' },
+                { status: 404 },
+            );
+        }
+
+        // Si NO tiene downloadEnabled (acceso libre) y ya tiene 2+ descargas, rechazar
+        if (!userAccess?.downloadEnabled && user._count.downloads >= 2) {
+            return NextResponse.json(
+                {
+                    error: 'Has alcanzado el límite de 2 descargas gratuitas. Contacta al administrador para pagar y descargar sin límite.',
+                },
+                { status: 403 },
+            );
         }
 
         const { url, type, title, channel, duration, thumbnail } = await request.json();
