@@ -2,8 +2,14 @@
 // npm install --save-dev prisma dotenv
 import { config as loadDotenv } from "dotenv";
 import { defineConfig } from "prisma/config";
+import fs from "fs";
 
-loadDotenv({ path: ".env.local" });
+// Only load .env.local if it exists (avoids overwriting Docker env vars)
+if (fs.existsSync(".env.local")) {
+  loadDotenv({ path: ".env.local" });
+} else if (fs.existsSync(".env")) {
+  loadDotenv({ path: ".env" });
+}
 
 export default defineConfig({
   schema: "prisma/schema.prisma",

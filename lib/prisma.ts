@@ -2,9 +2,16 @@ import path from 'path';
 import { PrismaClient } from '@/app/generated/prisma';
 import { PrismaBetterSqlite3 } from '@prisma/adapter-better-sqlite3';
 
-// Use absolute path to avoid CWD issues in Next.js server routes
-const dbPath = path.resolve(process.cwd(), 'prisma/dev.db');
-const adapter = new PrismaBetterSqlite3({ url: `file:${dbPath}` });
+function getDatabaseUrl(): string {
+  const envUrl = process.env.DATABASE_URL;
+  if (envUrl && envUrl.startsWith('file:')) {
+    return envUrl;
+  }
+  const dbPath = path.resolve(process.cwd(), 'prisma/dev.db');
+  return `file:${dbPath}`;
+}
+
+const adapter = new PrismaBetterSqlite3({ url: getDatabaseUrl() });
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;

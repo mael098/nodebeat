@@ -1,0 +1,26 @@
+services:
+  nodebeat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nodebeat
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=file:/data/nodebeat.db
+      - JWT_SECRET=${JWT_SECRET:-change-me-to-a-strong-secret}
+      - DOWNLOADS_DIR=/data/downloads
+    volumes:
+      - nodebeat_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  nodebeat_data:
+    driver: local
