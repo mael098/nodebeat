@@ -3,7 +3,7 @@ FROM node:20-alpine AS base
 # ---------- DEPS ----------
 FROM base AS deps
 RUN apk add --no-cache libc6-compat
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@9 --activate
 
 WORKDIR /app
 
@@ -15,7 +15,7 @@ RUN pnpm install --frozen-lockfile
 # ---------- BUILDER ----------
 FROM base AS builder
 RUN apk add --no-cache libc6-compat
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@9 --activate
 
 WORKDIR /app
 
@@ -57,7 +57,7 @@ COPY --from=builder /app/app/generated ./app/generated
 
 # Install production-only native dependencies
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN corepack enable && corepack prepare pnpm@latest --activate \
+RUN corepack enable && corepack prepare pnpm@9 --activate \
     && pnpm install --frozen-lockfile --prod \
     && pnpm store prune
 
