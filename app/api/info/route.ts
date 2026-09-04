@@ -1,45 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-
-const execFileAsync = promisify(execFile);
+import { getAuthenticatedUser } from '@/lib/auth';
+import { getVideoInfo } from '@/lib/youtube-downloader';
 
 export const maxDuration = 60;
 
-function normalizeYouTubeUrl(input: string): string {
-  let cleanUrl = input;
-  try {
-    const parsed = new URL(input);
-    if (parsed.hostname.includes('youtube.com')) {
-      const videoId = parsed.searchParams.get('v');
-      if (videoId) {
-        cleanUrl = `https://www.youtube.com/watch?v=${videoId}`;
-      }
-    } else if (parsed.hostname.includes('youtu.be')) {
-      const videoId = parsed.pathname.replace('/', '').trim();
-      if (videoId) {
-        cleanUrl = `https://www.youtube.com/watch?v=${videoId}`;
+const RATE_LIMIT_MAX = 20;
+const RATE_LIMIT_WINDOW_MS = 60 * 1000;
+
+const requestLog = new Map<number, number[]>();
+
+function isRateLimited(userId: number): boolean {
+  const now = Date.now();
+  const timestamps = requestLog.get(userId)?.filter((t) => now - t < RATE_LIMIT_WINDOW_MS) ?? [];
+  if (timestamps.length >= RATE_LIMIT_MAX) {
+    requestLog.set(userId, timestamps);
+    return true;
+  }
+  timestamps.push(now);
+  requestLog.set(userId, timestamps);
+  if (requestLog.size > 5000) {
+    for (const [key, value] of requestLog) {
+      if (value[value.length - 1] < now - RATE_LIMIT_WINDOW_MS) {
+        requestLog.delete(key);
       }
     }
-  } catch {
-    cleanUrl = input;
   }
-
-  return cleanUrl;
-}
-
-function formatDuration(totalSeconds?: number): string {
-  if (!totalSeconds || Number.isNaN(totalSeconds)) {
-    return 'N/A';
-  }
-
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+  return false;
 }
 
 export async function POST(request: NextRequest) {
   try {
+    const currentUser = await getAuthenticatedUser(request);
+    if (!currentUser) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
+
+    if (isRateLimited(currentUser.userId)) {
+      return NextResponse.json(
+        { error: 'Demasiadas solicitudes, inténtalo más tarde' },
+        { status: 429 },
+      );
+    }
+
     const { url } = await request.json();
 
     if (!url || typeof url !== 'string') {
@@ -50,32 +52,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'URL de YouTube invalida' }, { status: 400 });
     }
 
-    const cleanUrl = normalizeYouTubeUrl(url);
+    const info = await getVideoInfo(url);
 
-    const { stdout } = await execFileAsync(
-      'yt-dlp',
-      ['--no-playlist', '--dump-single-json', '--skip-download', cleanUrl],
-      {
-        timeout: 45000,
-        maxBuffer: 1024 * 1024 * 8,
-      }
-    );
-
-    const data = JSON.parse(stdout);
-
-    return NextResponse.json({
-      title: data.title ?? 'Sin titulo',
-      channel: data.uploader ?? data.channel ?? 'Canal desconocido',
-      duration: formatDuration(data.duration),
-      thumbnail: data.thumbnail ?? null,
-      cleanUrl,
-    });
+    return NextResponse.json(info);
   } catch (error) {
     return NextResponse.json(
       {
         error: error instanceof Error ? error.message : 'No se pudo analizar el video',
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

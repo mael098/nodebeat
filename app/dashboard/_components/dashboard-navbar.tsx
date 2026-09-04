@@ -38,22 +38,22 @@ export default function DashboardNavbar() {
   const avatar = email ? email[0].toUpperCase() : '?';
 
   return (
-    <nav className="sticky top-3 z-30 mx-auto mb-6 w-full max-w-5xl rounded-2xl border border-[#253459]/80 bg-[#101a31]/85 px-5 py-3 shadow-[0_8px_32px_rgba(0,0,0,0.45)] backdrop-blur-md">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-[#1a3b8a] text-xs font-bold text-white">
+    <nav className="sticky top-3 z-30 mx-auto mb-6 w-full max-w-5xl rounded-2xl border border-[#253459]/80 bg-[#101a31]/85 px-3 py-3 shadow-[0_8px_32px_rgba(0,0,0,0.45)] backdrop-blur-md sm:px-5">
+      <div className="flex items-center justify-between gap-2 sm:gap-3">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#1a3b8a] text-xs font-bold text-white">
             NB
           </span>
-          <div className="min-w-0">
+          <div className="hidden min-w-0 sm:block">
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#6b82b8]">Workspace</p>
             <p className="text-sm font-extrabold text-[#e8efff]">NodeBeat</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-1 rounded-xl border border-[#253459] bg-[#0d1528] p-1 text-sm font-semibold">
+        <div className="flex items-center gap-1 rounded-xl border border-[#253459] bg-[#0d1528] p-0.5 text-xs font-semibold sm:p-1 sm:text-sm">
           <Link
             href="/dashboard"
-            className={`rounded-lg px-4 py-1.5 transition ${
+            className={`whitespace-nowrap rounded-lg px-2.5 py-1.5 transition sm:px-4 ${
               isDashboard
                 ? 'bg-[#1a3b8a] text-white shadow-[0_2px_10px_rgba(26,59,138,0.4)]'
                 : 'text-[#8fa8d8] hover:bg-[#152040] hover:text-[#c7d8ff]'
@@ -63,7 +63,7 @@ export default function DashboardNavbar() {
           </Link>
           <Link
             href="/dashboard/biblioteca"
-            className={`rounded-lg px-4 py-1.5 transition ${
+            className={`whitespace-nowrap rounded-lg px-2.5 py-1.5 transition sm:px-4 ${
               isBiblioteca
                 ? 'bg-[#1a3b8a] text-white shadow-[0_2px_10px_rgba(26,59,138,0.4)]'
                 : 'text-[#8fa8d8] hover:bg-[#152040] hover:text-[#c7d8ff]'
@@ -74,10 +74,10 @@ export default function DashboardNavbar() {
         </div>
 
         {/* Profile dropdown */}
-        <div ref={menuRef} className="relative">
+        <div ref={menuRef} className="relative shrink-0">
           <button
             onClick={() => setMenuOpen((o) => !o)}
-            className="flex items-center gap-2 rounded-xl border border-[#2d3f6b] bg-[#0d1528] px-3 py-1.5 transition hover:border-[#4a5f94]"
+            className="flex items-center gap-1.5 rounded-xl border border-[#2d3f6b] bg-[#0d1528] px-2 py-1.5 transition hover:border-[#4a5f94] sm:gap-2 sm:px-3"
           >
             <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-[#1a3b8a] text-xs font-bold text-white">
               {avatar}

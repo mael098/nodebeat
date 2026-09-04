@@ -1,10 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getAdminUser } from '@/lib/admin';
-import { scrypt as scryptCallback } from 'crypto';
-import { promisify } from 'util';
-
-const scrypt = promisify(scryptCallback);
+import { hashPassword } from '@/lib/password';
 
 export async function GET(request: NextRequest) {
   try {
@@ -72,9 +69,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const salt = crypto.getRandomValues(new Uint8Array(16)).toString();
-    const derivedKey = (await scrypt(password, salt, 64)) as Buffer;
-    const hashedPassword = `${salt}:${derivedKey.toString('hex')}`;
+    const hashedPassword = await hashPassword(password);
 
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + daysAllowed);

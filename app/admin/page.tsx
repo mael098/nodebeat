@@ -2,36 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import type { User,Payment, Tab } from '../types/types';
 
-type User = {
-    id: number;
-    email: string;
-    isAdmin: boolean;
-    userAccess?: {
-        daysAllowed: number;
-        expiresAt: string;
-        downloadEnabled: boolean;
-    } | null;
-    createdAt: string;
-};
 
-type Payment = {
-    id: number;
-    userId: number;
-    amount: number;
-    currency: string;
-    note?: string;
-    status: string;
-    createdAt: string;
-    user: {
-        id: number;
-        email: string;
-        subscriptionStatus: string;
-        subscriptionEndsAt?: string;
-    };
-};
 
-type Tab = "users" | "payments";
+
+
 
 export default function AdminPage() {
     const router = useRouter();
